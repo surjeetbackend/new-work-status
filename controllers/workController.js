@@ -2,33 +2,24 @@ const Work = require('../models/Work');
 const generateToken = require('../utils/tokenGenerator');
 
 exports.createWork = async (req, res) => {
+  console.log('🛠️ Submitting work for user:', req.user.email);
+
   try {
-    const { description, location, work_type, requirement } = req.body;
-
-    if (!description || !location || !work_type || !requirement) {
-      return res.status(400).json({ error: 'All fields are required' });
-    }
-
-    const token_no = generateToken();
-
-    const newWork = await Work.create({
-      client_id: req.user._id, // ✅ Correct field name
+    const token_no = 'TKN' + Date.now().toString().slice(-6); // Or your logic
+    const newWork = new Work({
+      client_id: req.user._id,
       token_no,
-      description,
-      location,
-      work_type,
-      requirement,
-      status: 'Submitted',
+      description: req.body.description,
+      location: req.body.location,
+      work_type: req.body.work_type,
+      requirement: req.body.requirement,
     });
 
-    res.status(201).json({
-      message: 'Work submitted successfully',
-      token_no,
-      work: newWork
-    });
-
+    await newWork.save();
+    res.status(201).json({ message: 'Work submitted', token_no });
   } catch (err) {
-    console.error('❌ Work creation error:', err);
+    console.error('❌ Work submission error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
