@@ -15,57 +15,78 @@ const workSchema = new mongoose.Schema({
     enum: ['high', 'medium', 'light'],
     required: true
   },
+
   status: {
     type: String,
-    enum: ['Submitted', 'Approved', 'Assigned', 'In Progress', 'Completed'],
-    default: 'Submitted'
+    enum: ['open', 'Approved', 'Assigned', 'In Progress', 'Completed', 'Rejected'],
+    default: 'open'
   },
+
   approvalStatus: {
     type: String,
-    enum: ['Pending', 'Approved', 'Rejected'],
-    default: 'Pending'
+    enum: ['open', 'Approved', 'Rejected'],
+    default: 'open'
   },
-  assigned_to: {
+
+  assigned_to: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-  default: null
+  }],
+
+  approvalBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
   },
-  
-approvalBy: {
-  type: mongoose.Schema.Types.ObjectId,
-  ref: 'User',
-  default: null
-},
-assignedBy: {
-  type: mongoose.Schema.Types.ObjectId,
-  ref: 'User',
 
-},
+  assignedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  },
+
  
-
-account: {
-  filled: { type: Boolean, default: false },
-  bills: [String], 
-  expenses: [
+  assignmentHistory: [
     {
-      amount: Number,
-      description: String,
-    },
+      supervisor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      assignedOn: Date,
+      unassignedOn: Date
+    }
   ],
-},
-billGenerated: { type: Boolean, default: false },
 
-
-
+  account: {
+    filled: { type: Boolean, default: false },
+    bills: [String],
+    expenses: [
+      {
+        amount: Number,
+        description: String,
+      },
+    ],
+  },
+supervisor: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+history: [
+  {
+    supervisor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    assignedOn: Date,
+    unassignedOn: Date,
+  }
   
-estimatedTime: String,
-laborRequired: String,
-startPhoto: String,
-completionPhoto: String,
-materialRequest: String,
-materialApproved: { type: Boolean, default: false }
+],
+
+  billGenerated: { type: Boolean, default: false },
+approvedAt: { type: Date },
+completedAt: { type: Date },
 
 
+ startedAt: Date,     // new field: when work started
+  completedAt: Date,
+  estimatedTime: String,
+  laborRequired: String,
+  startPhoto: String,
+  completionPhoto: String,
+  materialRequest: String,
+  materialApproved: { type: Boolean, default: false }
+  
 
 }, { timestamps: true });
 
