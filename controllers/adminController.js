@@ -1,10 +1,12 @@
 // controllers/adminController.js
 const Work = require('../models/Work');
 const User = require('../models/User');
+const mongoose = require('mongoose');
+
 
 exports.getPendingWorks = async (req, res) => {
   try {
-    const works = await Work.find({ approvalStatus: 'Pending' }).populate('client_id', 'name email');
+    const works = await Work.find({ approvalStatus: 'open' }).populate('client_id', 'name email');
     res.json(works);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -20,7 +22,6 @@ exports.getSupervisors = async (req, res) => {
   }
 };
 
-
 exports.approveWork = async (req, res) => {
   try {
     const { workId } = req.body;
@@ -29,64 +30,218 @@ exports.approveWork = async (req, res) => {
 
     work.approvalStatus = 'Approved';
     work.status = 'Approved';
-    work.approvalBy = req.user._id; // ✅ Fix this line
+    work.approvalBy = req.user._id;
 
     await work.save();
-
     res.json({ message: 'Work approved by admin', work });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
-exports.assignSupervisor = async (req, res) => {
-  
-
+exports.rejectWork = async (req, res) => {
   try {
-    
-    const { workId, supervisorId } = req.body;
+    const { workId } = req.body;
+    const work = await Work.findById(workId);
+    if (!work) return res.status(404).json({ error: 'Work not found' });
 
-    if (!workId || !supervisorId) {
-      return res.status(400).json({ error: 'workId and supervisorId are required' });
-    }
+    work.approvalStatus = 'Rejected';
+    work.status = 'Rejected';
+    work.approvalBy = req.user._id;
 
-    const supervisor = await User.findOne({ _id: supervisorId, role: 'supervisor' });
-    if (!supervisor) {
-      return res.status(400).json({ error: 'Supervisor not found or invalid role' });
+    await work.save();
+    res.json({ message: 'Work rejected by admin', work });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// exports.assignSupervisor = async (req, res) => {
+//   try {
+//     const { workId, supervisorIds } = req.body;
+
+//     if (!workId || !Array.isArray(supervisorIds)) {
+//       return res.status(400).json({ error: 'workId and supervisorIds[] are required' });
+//     }
+
+//     const work = await Work.findById(workId);
+//     if (!work) return res.status(404).json({ error: 'Work not found' });
+
+//     if (work.approvalStatus !== 'Approved') {
+//       return res.status(400).json({ error: 'Work must be approved first' });
+//     }
+
+//     const currentSupervisors = work.supervisor.map(id => id.toString());
+//     const newOnes = supervisorIds.filter(id => !currentSupervisors.includes(id));
+
+//     newOnes.forEach(id => {
+//       work.supervisor.push(id);
+//       work.history.push({ supervisor: id, assignedOn: new Date() });
+//     });
+
+//     work.assignedBy = req.user._id;
+//     work.status = 'Assigned';
+//     await work.save();
+
+//     res.json({ message: 'Supervisors assigned', work });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// };
+
+exports.assignSupervisor = async (req, res) => {
+  try {
+    const { workId, supervisorIds } = req.body;
+
+    if (!workId || !Array.isArray(supervisorIds)) {
+      return res.status(400).json({ error: 'workId and supervisorIds[] are required' });
     }
 
     const work = await Work.findById(workId);
-    if (!work) {
-      return res.status(404).json({ error: 'Work not found' });
-    }
+    if (!work) return res.status(404).json({ error: 'Work not found' });
 
     if (work.approvalStatus !== 'Approved') {
-      return res.status(400).json({ error: 'Work must be approved before assigning a supervisor' });
+      return res.status(400).json({ error: 'Work must be approved first' });
     }
 
-    work.assigned_to = supervisorId;
-     work.assignedBy = req.user._id;
-      console.log("➡️ User in req:", req.user);
-  work.status = 'Assigned';
-    work.status = 'Assigned';
+    const currentSupervisors = work.supervisor.map(id => id.toString());
+    const newSupervisors = supervisorIds.filter(id => !currentSupervisors.includes(id));
 
+    newSupervisors.forEach(id => {
+      work.supervisor.push(id);
+      work.history.push({
+        supervisor: id,
+        assignedOn: new Date(),
+        unassignedOn: null,
+      });
+    });
+
+    work.status = 'Assigned';
+    work.assignedBy = req.user._id;
     await work.save();
-     await work.populate('assigned_to', 'name email');
-     console.log(work.assigned_to)
-    res.json({ message: 'Supervisor assigned successfully', work });
+
+    res.json({ message: 'Supervisors assigned', work });
   } catch (err) {
-    console.error('Assign supervisor error:', err);
     res.status(500).json({ error: err.message });
   }
-  
 };
+
+
+// exports.unassignSupervisor = async (req, res) => {
+//   try {
+//     const { workId, supervisorId } = req.body;
+
+//     const work = await Work.findById(workId);
+//     if (!work) return res.status(404).json({ error: 'Work not found' });
+
+//     if (!work.supervisor.includes(supervisorId)) {
+//       return res.status(400).json({ error: 'Supervisor not assigned to this work' });
+//     }
+
+//     work.supervisor = work.supervisor.filter(id => id.toString() !== supervisorId);
+
+//     const historyEntry = [...work.history].reverse().find(
+//       entry => entry.supervisor.toString() === supervisorId && !entry.unassignedOn
+//     );
+//     if (historyEntry) historyEntry.unassignedOn = new Date();
+
+//     await work.save();
+//     res.json({ message: 'Supervisor unassigned', work });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// };
+
+exports.unassignSupervisor = async (req, res) => {
+  try {
+    const { workId, supervisorId } = req.body;
+
+    if (!workId || !supervisorId) {
+        console.error('❌ Missing fields:', { workId, supervisorId });
+      return res.status(400).json({ error: 'workId and supervisorId are required' });
+    }
+
+    const work = await Work.findById(workId);
+      console.error('❌ Work not found:', workId);
+    if (!work) return res.status(404).json({ error: 'Work not found' });
+
+    //
+    const supId = new mongoose.Types.ObjectId(supervisorId);
+
+    work.supervisor = work.supervisor.filter(
+      id => !id.equals(supId)
+    );
+
+    const lastEntry = [...work.history].reverse().find(
+      h => h.supervisor.equals(supId) && !h.unassignedOn
+    );
+
+    if (lastEntry) {
+      lastEntry.unassignedOn = new Date();
+    }
+
+    await work.save();
+    res.json({ message: 'Supervisor unassigned successfully', work });
+  } catch (err) {
+    console.error('❌ Error in unassignSupervisor:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+exports.updateSupervisorList = async (req, res) => {
+  try {
+    const { workId, supervisorIds } = req.body;
+    // console.log('Payload:', { workId, supervisorIds });
+
+    if (!workId || !Array.isArray(supervisorIds)) {
+      return res.status(400).json({ error: 'workId and supervisorIds[] are required' });
+    }
+
+    const work = await Work.findById(workId);
+    if (!work) return res.status(404).json({ error: 'Work not found' });
+
+ 
+    const oldSupervisorSet = new Set(work.supervisor.map(id => id.toString()));
+    const newSupervisorSet = new Set(supervisorIds);
+
+    work.supervisor.forEach(id => {
+      if (!newSupervisorSet.has(id.toString())) {
+        work.history.push({
+          supervisor: id,
+          unassignedOn: new Date(),
+        });
+      }
+    });
+
+   
+    supervisorIds.forEach(id => {
+      if (!oldSupervisorSet.has(id.toString())) {
+        work.history.push({
+          supervisor: id,
+          assignedOn: new Date(),
+        });
+      }
+    });
+
+    work.supervisor = supervisorIds;
+    work.assignedBy = req.user._id;
+    work.assignedAt = new Date();
+
+    await work.save();
+
+    res.json({ message: 'Supervisor list updated', work });
+  } catch (err) {
+    console.log('🔥 Error in updateSupervisorList:', err); // ✅ Fixed here
+    res.status(500).json({ error: err.message });
+  }
+};
+
 
 exports.getAllWorks = async (req, res) => {
   try {
     const works = await Work.find({})
       .sort({ createdAt: -1 })
       .populate('client_id', 'name email')
-      .populate('assigned_to', 'name email')
+      .populate('supervisor', 'name email')
       .populate('approvalBy', 'name email')
       .populate('assignedBy', 'name email');
 
@@ -97,16 +252,13 @@ exports.getAllWorks = async (req, res) => {
   }
 };
 
-
-
-
 exports.approveMaterialRequest = async (req, res) => {
   try {
     const { workId } = req.body;
     const work = await Work.findById(workId);
     if (!work) return res.status(404).json({ error: 'Work not found' });
 
-    work.materialApproved = true; 
+    work.materialApproved = true;
     await work.save();
 
     res.json({ message: 'Material request approved', work });
@@ -114,37 +266,26 @@ exports.approveMaterialRequest = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-// accountController.js
-// exports.generateBillByToken = async (req, res) => {
-//   const { tokenNo } = req.params;
 
-//   try {
-//     const work = await Work.findOne({ token_no: tokenNo })
-//       .populate('client_id')
-//       .populate('assigned_to');
+exports.updateWorkStatus = async (req, res) => {
+  try {
+    const { workId, newStatus } = req.body;
+    const work = await Work.findById(workId);
+    if (!work) return res.status(404).json({ error: 'Work not found' });
 
-//     if (!work) return res.status(404).json({ error: 'Work not found' });
+    if (newStatus === 'In Progress' && !work.startedAt) {
+      work.startedAt = new Date();
+    }
+    if (newStatus === 'Completed' && !work.completedAt) {
+      work.completedAt = new Date();
+    }
 
-//     // ✅ Use PDFKit or any method to generate bill
-//     const PDFDocument = require('pdfkit');
-//     const doc = new PDFDocument();
+    work.status = newStatus;
+    await work.save();
 
-//     res.setHeader('Content-Type', 'application/pdf');
-//     res.setHeader('Content-Disposition', `attachment; filename=bill-${tokenNo}.pdf`);
-
-//     doc.pipe(res);
-//     doc.fontSize(20).text(`Work Bill: ${tokenNo}`);
-//     doc.moveDown();
-//     doc.fontSize(14).text(`Client: ${work.client_id.name} (${work.client_id.email})`);
-//     doc.text(`Description: ${work.description}`);
-//     doc.text(`Assigned To: ${work.assigned_to?.name || '—'}`);
-//     doc.text(`Status: ${work.status}`);
-//     // ... add more details if needed
-//     doc.end();
-
-//   } catch (err) {
-//     console.error('❌ Error generating bill by token:', err);
-//     res.status(500).json({ error: 'Failed to generate bill PDF' });
-//   }
-// };
-
+    res.json({ message: 'Status updated', work });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
