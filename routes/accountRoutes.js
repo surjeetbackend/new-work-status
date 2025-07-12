@@ -5,7 +5,7 @@ const Work = require('../models/Work');
 const fs = require('fs');
 const path = require('path');
 
-
+console.log('fixed');
 router.get('/generate-bill/token/:token', async (req, res) => {
   try {
     const { token } = req.params;
