@@ -5,7 +5,7 @@ exports.createWork = async (req, res) => {
   console.log('🛠️ Submitting work for user:', req.user.email);
 
   try {
-    const token_no = 'TKN' + Date.now().toString().slice(-6); // Or your logic
+    const token_no = 'W-' + Date.now().toString().slice(-4); // Or your logic
     const newWork = new Work({
       client_id: req.user._id,
       token_no,
@@ -13,6 +13,8 @@ exports.createWork = async (req, res) => {
       location: req.body.location,
       work_type: req.body.work_type,
       requirement: req.body.requirement,
+      contact_name:req.body.contact_name,
+      contact_phone:req.body.contact_phone,
     });
 
     await newWork.save();
