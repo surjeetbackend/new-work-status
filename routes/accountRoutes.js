@@ -52,26 +52,26 @@ router.get('/generate-bill/token/:token', async (req, res) => {
       .moveDown();
 
     // Section: Bill Photo
-    doc.fontSize(14).text(' Bill Image', { underline: true }).moveDown(0.5);
-    if (work.account?.bills?.length > 0) {
-      const fileUrl = work.account.bills[0];
-      const filePath = path.join(__dirname, '..', 'public', ...fileUrl.split('/').filter(Boolean));
+    // doc.fontSize(14).text(' Bill Image', { underline: true }).moveDown(0.5);
+    // if (work.account?.bills?.length > 0) {
+    //   const fileUrl = work.account.bills[0];
+    //   const filePath = path.join(__dirname, '..', 'public', ...fileUrl.split('/').filter(Boolean));
 
-      if (fs.existsSync(filePath)) {
-        doc.image(filePath, { fit: [400, 200], align: 'center' }).moveDown();
-      } else {
-        doc.text(' Bill image not found').moveDown();
-      }
-    } else {
-      doc.text(' No bill image uploaded').moveDown();
-    }
+    //   if (fs.existsSync(filePath)) {
+    //     doc.image(filePath, { fit: [400, 200], align: 'center' }).moveDown();
+    //   } else {
+    //     doc.text(' Bill image not found').moveDown();
+    //   }
+    // } else {
+    //   doc.text(' No bill image uploaded').moveDown();
+    // }
 
     // Section: Expense
     doc.fontSize(14).text(' Expenses Breakdown', { underline: true }).moveDown(0.5);
     let total = 0;
     if (work.account?.expenses?.length > 0) {
       work.account.expenses.forEach((exp, i) => {
-       doc.text(`${i + 1}. ${exp.description} - ₹${Number(exp.amount).toLocaleString('en-IN')}`);
+       doc.text(`${i + 1}. ${exp.description} - ${Number(exp.amount).toLocaleString('en-IN')}${'/-'}`);
 
         total += Number(exp.amount);
       });
@@ -85,7 +85,7 @@ router.get('/generate-bill/token/:token', async (req, res) => {
       .text('------------------------------')
       .fontSize(16)
       .fillColor('green')
-      .text(`Total Amount: ${total}`, { align: 'right' })
+      .text(`Total Amount: ${total}${'/-'}`, { align: 'left' })
       .fillColor('black')
       .text('------------------------------')
       .moveDown();
