@@ -2,7 +2,7 @@ const User = require('../models/User');
 const bcrypt = require('bcrypt');
 
 const jwt = require('jsonwebtoken');
-const { generateOTP, sendOTPSMS } = require('../utils/otpUtils');
+const { generateOTP, sendOTPSMS ,  sendLoginAlertSMS  } = require('../utils/otpUtils');
 
 const otpStore = {};
 
@@ -81,29 +81,39 @@ exports.loginVerifyOTP = async (req, res) => {
     if (record.otp !== otp)
       return res.status(400).json({ error: 'Incorrect OTP' });
 
-    const user = await User.findOne({ phone });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    let user = await User.findOne({ phone });
+    let isNew = false;
+
+    if (!user) {
+      user = await User.create({ phone, name: 'New User' });
+      isNew = true;
+    }
 
     delete otpStore[phone];
 
     const token = jwt.sign(
-      { id: user._id, role: user.role, name: user.name},
+      { id: user._id, role: user.role, name: user.name },
       process.env.JWT_SECRET,
-      { expiresIn: '1d' }
+      { expiresIn: '7d' }
     );
 
+    // ✅ Send alert SMS after login
+    await sendLoginAlertSMS(phone);
+
     res.json({
-      message: 'Login successful',
+      message: isNew ? `Welcome, ${user.name}! Thanks for joining.` : `Welcome back, ${user.name}!`,
       token,
-      user: { id: user._id, name: user.name, phone: user.phone, role: user.role,  city: user.city },
+      user: { id: user._id, name: user.name, phone: user.phone, role: user.role },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
+
      
 
 //  without phone number ------
+
 
 // exports.registerUser = async (req, res) => {
 //   try {
@@ -133,4 +143,14 @@ exports.loginVerifyOTP = async (req, res) => {
 //   } catch (error) {
 //     res.status(500).json({ error: error.message });
 //   }
-// };
+// }; 
+exports.getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('-password'); // don't send password
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
