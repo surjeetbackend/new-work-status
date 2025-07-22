@@ -5,16 +5,25 @@ const workSchema = new mongoose.Schema({
   token_no: { type: String, unique: true, required: true },
   description: { type: String, required: true },
   location: { type: String, required: true },
+  contact_name:{type:String, required: true},
+  contact_phone:{type: String, required:true},
   work_type: {
     type: String,
-    enum: ['construct', 'repair', 'build'],
-    required: true
+    enum: ['Electrical', 'Civil', 'Fabrication', 'Other'],
+    required: true,
+     set: v => v.charAt(0).toUpperCase() + v.slice(1).toLowerCase() // auto-format
   },
   requirement: {
     type: String,
     enum: ['high', 'medium', 'light'],
     required: true
   },
+  
+  sheetLink: {
+  type: String,
+  default: ''
+},
+
 
   status: {
     type: String,
@@ -62,7 +71,7 @@ const workSchema = new mongoose.Schema({
         description: String,
       },
     ],
-  },
+  }, 
 supervisor: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 history: [
   {
@@ -70,22 +79,37 @@ history: [
     assignedOn: Date,
     unassignedOn: Date,
   }
-  
+ 
+
 ],
+materialRequests: [
+  {
+    item: { type: String, required: true },
+    quantity: { type: String, required: true },
+    requiredDate: { type: String, required: true },
+    requestedAt: { type: Date, default: Date.now },
+    approved: { type: Boolean, default: false },
+    approvedAt: Date,
+    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    supervisor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  }
+],
+
 
   billGenerated: { type: Boolean, default: false },
 approvedAt: { type: Date },
 completedAt: { type: Date },
 
 
- startedAt: Date,     // new field: when work started
-  completedAt: Date,
+ startedAt: Date,     
+  completedAt: Date, 
   estimatedTime: String,
   laborRequired: String,
   startPhoto: String,
   completionPhoto: String,
-  materialRequest: String,
-  materialApproved: { type: Boolean, default: false }
+  
+  
+
   
 
 }, { timestamps: true });
