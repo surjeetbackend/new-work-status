@@ -81,7 +81,7 @@ router.get(
 
       res.json(work);
     } catch (err) {
-      console.error('❌ Error fetching work by token:', err);
+      console.error(' Error fetching work by token:', err);
       res.status(500).json({ error: 'Internal server error' });
     }
   }
