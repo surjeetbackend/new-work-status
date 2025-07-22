@@ -1,8 +1,50 @@
 const Work = require('../models/Work');
 const fs = require('fs');
 const path = require('path');
+const { appendMaterialRequest } = require('../utils/googleSheets');
+const { logMaterialRequestToSheet } = require('../utils/googleSheets');
 
 // ✅ Get approved works assigned to the current supervisor
+exports.requestMaterial = async (req, res) => {
+  const { workId, materialRequests } = req.body;
+  const supervisorId = req.user._id;
+
+  if (!Array.isArray(materialRequests) || materialRequests.length === 0) {
+    return res.status(400).json({ error: 'No material requests provided' });
+  }
+
+  try {
+    const work = await Work.findById(workId);
+    if (!work) return res.status(404).json({ error: 'Work not found' });
+
+    const timestamp = new Date();
+
+    // Validate and push each request properly
+    for (const item of materialRequests) {
+      if (!item.item || !item.quantity || !item.requiredDate) {
+        return res.status(400).json({ error: 'Each material request must have item, quantity, and requiredDate' });
+      }
+      work.materialRequests.push({
+        item: item.item,
+        quantity: item.quantity,
+        requiredDate: item.requiredDate,
+        requestedAt: timestamp,
+        supervisor: supervisorId,
+        approved: false,
+      });
+    }
+
+    await work.save();
+
+    res.json({ message: 'Material requests submitted', work });
+  } catch (err) {
+    console.error('❌ Material request error:', err);
+    res.status(500).json({ error: 'Request failed', details: err.message });
+  }
+};
+
+
+
 
 exports.getApprovedWorks = async (req, res) => {
   try {
@@ -13,7 +55,7 @@ exports.getApprovedWorks = async (req, res) => {
       .populate('history.supervisor', 'name email')
        .populate('approvalBy', 'name')
       .populate('assignedBy', 'name')
-            .populate('assigned_to', 'name');
+            .populate('assigned_to', 'name').select('+sheetLink');
    
    
     const filtered = allWorks.filter(work =>
@@ -94,7 +136,12 @@ exports.completeWork = async (req, res) => {
 
     if (req.file) {
       const completionPhotoUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-      work.completionPhoto = completionPhotoUrl;
+      // 👇 Push into array instead of replacing
+      work.completionPhotos = work.completionPhotos || [];
+      work.completionPhotos.push({
+        url: completionPhotoUrl,
+        uploadedAt: new Date()
+      });
     }
 
     work.status = 'Completed';
@@ -108,28 +155,8 @@ exports.completeWork = async (req, res) => {
 };
 
 // ✅ Material Request
-exports.requestMaterial = async (req, res) => {
-  try {
-    const { workId, materialRequest } = req.body;
-    const work = await Work.findById(workId);
-    if (!work) return res.status(404).json({ error: 'Work not found' });
 
-    const isAssigned = work.history.some(h =>
-      h.supervisor?.toString() === req.user._id.toString() && !h.unassignedOn
-    );
-    if (!isAssigned) {
-      return res.status(403).json({ error: 'Not authorized to request material' });
-    }
 
-    work.materialRequest = materialRequest;
-    await work.save();
-
-    res.json({ message: 'Material request submitted', work });
-  } catch (err) {
-    console.error('❌ requestMaterial error:', err);
-    res.status(500).json({ error: err.message });
-  }
-};
 
 // ✅ Account Entry (single bill photo + expenses)
 exports.accountEntryHandler = async (req, res) => {
