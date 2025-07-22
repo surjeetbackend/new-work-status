@@ -2,6 +2,11 @@
 const Work = require('../models/Work');
 const User = require('../models/User');
 const mongoose = require('mongoose');
+const fs = require('fs');
+const path = require('path');
+const XLSX = require('xlsx');
+const { format } = require('fast-csv');
+
 
 
 exports.getPendingWorks = async (req, res) => {
@@ -252,20 +257,42 @@ exports.getAllWorks = async (req, res) => {
   }
 };
 
-exports.approveMaterialRequest = async (req, res) => {
-  try {
-    const { workId } = req.body;
-    const work = await Work.findById(workId);
-    if (!work) return res.status(404).json({ error: 'Work not found' });
 
-    work.materialApproved = true;
+
+exports.approveMaterial = async (req, res) => {
+  try {
+    const { workId, requestIndex } = req.body;
+
+    const work = await Work.findById(workId);
+    if (!work) {
+      return res.status(404).json({ error: 'Work not found' });
+    }
+
+    if (!work.materialRequests || !work.materialRequests[requestIndex]) {
+      return res.status(400).json({ error: 'Invalid request index' });
+    }
+
+    // Approve the material request
+    work.materialRequests[requestIndex].approved = true;
+    work.materialRequests[requestIndex].approvedAt = new Date();
+  
+
     await work.save();
 
-    res.json({ message: 'Material request approved', work });
+    res.json({ success: true, message: 'Material request approved.' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Error approving material:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 };
+
+
+// Helper to extract sheet ID
+function extractSheetId(sheetUrl) {
+  const match = sheetUrl.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  return match ? match[1] : null;
+};
+
 
 exports.updateWorkStatus = async (req, res) => {
   try {
@@ -287,5 +314,34 @@ exports.updateWorkStatus = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
+  }
+};
+
+exports.downloadCSVByToken = async (req, res) => {
+  const tokenNo = req.params.tokenNo;
+
+  try {
+    const work = await Work.findOne({ token_no: tokenNo }).populate("materialRequests.supervisor", "name");
+    if (!work) return res.status(404).send("Work not found");
+
+    let csvContent = "Item,Quantity,Required Date,Supervisor,Requested At\n";
+
+    work.materialRequests.forEach((req) => {
+      const row = [
+        `"${req.item || '-'}"`,
+        `${req.quantity || '-'}`,
+        `${req.requiredDate ? new Date(req.requiredDate).toLocaleDateString('en-IN') : '-'}`,
+        `"${req.supervisor?.name || '-'}"`,
+        `${req.requestedAt ? new Date(req.requestedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-'}`,
+      ].join(',');
+      csvContent += row + '\n';
+    });
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename=Material-${tokenNo}.csv`);
+    res.status(200).send(csvContent);
+  } catch (err) {
+    console.error("❌ Error downloading CSV:", err);
+    res.status(500).send("Internal Server Error");
   }
 };
