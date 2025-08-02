@@ -50,5 +50,3 @@ async function createSheetAndWriteToken(token_no) {
 module.exports = {
   createSheetAndWriteToken,
 };
-
-
