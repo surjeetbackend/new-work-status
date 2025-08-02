@@ -33,11 +33,12 @@ app.use('/api/work', require('./routes/workRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/supervisor', require('./routes/supervisorRoutes'));
 app.use('/api/account', require('./routes/accountRoutes'));
+app.use('/api',require('./routes/routeReport'))
 
 app.use('/excel', express.static(path.join(__dirname, 'public', 'excel')));
 
 
-
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 app.use('/images', express.static(path.join(__dirname, 'public/images')));
 
