@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const PDFDocument = require('pdfkit');
+
 const Work = require('../models/Work');
 const fs = require('fs');
 const path = require('path');
