@@ -7,21 +7,21 @@ const path = require('path');
 
 dotenv.config();
 const app = express();
-
 const allowedOrigins = process.env.FRONTEND_ORIGIN.split(',');
 
+// ✅ Setup CORS
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
+    // Allow requests with no origin (like curl or Postman)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
     } else {
-      console.log('❌ Blocked Origin:', origin);
-      callback(new Error('CORS Not Allowed'));
+      return callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  credentials: true,
 }));
-
 app.use(express.json());
 
 mongoose.connect(process.env.MONGO_URI)
