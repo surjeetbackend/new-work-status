@@ -105,9 +105,11 @@ completedAt: { type: Date },
   completedAt: Date, 
   estimatedTime: String,
   laborRequired: String,
+  startcommet:String,
   startPhoto: String,
   completionPhoto: String,
-  
+  startComment: { type: String },
+
   
 
   
