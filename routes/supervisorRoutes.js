@@ -1,91 +1,119 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const upload = require('../middleware/upload'); 
+const { Parser } = require("json2csv");
+const Work = require("../models/Work");
 
-const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
-const {
-  getApprovedWorks,
-  startWork,
-  completeWork,
-  requestMaterial,
-  accountEntryHandler,
-  submitAccountDetails,
-} = require('../controllers/supervisorController');
-const Work = require('../models/Work'); // ✅ Missing import
+router.get("/download/csv", async (req, res) => {
+  try {
+    const works = await Work.find().populate("history.supervisor", "name");
+       
 
-// ✅ Get approved/assigned works for supervisor
-router.get(
-  '/approved-works',
-  verifyToken,
-  authorizeRoles('supervisor'),
-  getApprovedWorks
-);
+   
+    const flatData = [];
 
-// ✅ Start work (with start photo upload)
-router.post(
-  '/start-work',
-  verifyToken,
-  authorizeRoles('supervisor'),
-  upload.single('startPhoto'),
-  startWork
-);
-
-// ✅ Complete work (with completion photo upload)
-router.post(
-  '/complete-work',
-  verifyToken,
-  authorizeRoles('supervisor'),
-  upload.single('completionPhoto'),
-  completeWork
-);
-
-// ✅ Request material
-router.post(
-  '/material-request',
-  verifyToken,
-  authorizeRoles('supervisor'),
-  requestMaterial
-);
-
-// ✅ Submit account section (bills + expenses)
-router.post(
-  '/submit-account/:token_no',
-  verifyToken,
-  authorizeRoles('supervisor'),
-  upload.array('bills', 5),
-  submitAccountDetails
-);
-
-// ✅ Add single expense entry with photo
-router.post(
-  '/account-entry',
-  verifyToken,
-  authorizeRoles('supervisor'),
-  upload.single('billPhoto'),
-  accountEntryHandler
-);
-
-// ✅ Get work by token (used in AccountPage)
-router.get(
-  '/work-by-token/:token',
-  verifyToken,
-  authorizeRoles('supervisor'),
-  async (req, res) => {
-    try {
-      const work = await Work.findOne({ token_no: req.params.token })
-        .populate('client_id', 'name email');
-
-      if (!work) {
-        return res.status(404).json({ error: 'Work not found' });
+    works.forEach((work) => {
+      if (work.history.length === 0) {
+       
+        flatData.push({
+          token_no: work.token_no,
+          work_type: work.work_type,
+          status: work.status,
+          location: work.location,
+          approvalStatus: work.approvalStatus,
+          activity: "No activity"
+        });
+      } else {
+        work.history.forEach((entry) => {
+          flatData.push({
+            token_no: work.token_no,
+            work_type: work.work_type,
+            status: work.status,
+            location: work.location,
+            approvalStatus: work.approvalStatus,
+            supervisor: entry.supervisor?.name || entry.supervisor?.toString() || "N/A",
+            assignedOn: entry.assignedOn ? new Date(entry.assignedOn).toLocaleString() : "",
+            unassignedOn: entry.unassignedOn ? new Date(entry.unassignedOn).toLocaleString() : "",
+            
+          });
+        });
       }
+    });
 
-      res.json(work);
-    } catch (err) {
-      console.error(' Error fetching work by token:', err);
-      res.status(500).json({ error: 'Internal server error' });
-    }
+    const fields = [
+      "token_no",
+      "work_type",
+      "status",
+      "location",
+      "approvalStatus",
+      "supervisor",
+      "assignedOn",
+      "unassignedOn"
+    ];
+
+    const parser = new Parser({ fields });
+    const csv = parser.parse(flatData);
+
+    res.header("Content-Type", "text/csv");
+    res.attachment("work_activity_report.csv");
+    return res.send(csv);
+  } catch (error) {
+    console.error("CSV Error:", error);
+    res.status(500).json({ error: "Failed to generate activity CSV" });
   }
-);
+});
 
-// ✅ Final export
+router.get("/admin/material-report-csv", async (req, res) => {
+  try {
+    const works = await Work.find({ "materialRequests.0": { $exists: true } })
+      .populate("materialRequests.supervisor", "name email");
+
+    const data = [];
+
+    works.forEach((work) => {
+      // Sort materialRequests by requestedOn DESC
+      const sortedRequests = [...work.materialRequests].sort((a, b) => {
+        return new Date(b.requestedOn) - new Date(a.requestedOn);
+      });
+
+      sortedRequests.forEach((req) => {
+        data.push({
+          token_no: work.token_no,
+          work_type: work.work_type,
+          location: work.location,
+          supervisor: req.supervisor?.name || "N/A",
+          item: req.item,
+          quantity: req.quantity,
+          requiredDate: req.requiredDate?.toISOString().split("T")[0] || "",
+          requestedOn: req.requestedOn?.toISOString().split("T")[0] || "",
+          status: req.status,
+          remarks: req.remarks || "",
+        });
+      });
+    });
+
+    const fields = [
+      "token_no",
+      "work_type",
+      "location",
+      "supervisor",
+      "item",
+      "quantity",
+      "requiredDate",
+      "requestedOn",
+      "status",
+      "remarks",
+    ];
+
+    const parser = new Parser({ fields });
+    const csv = parser.parse(data);
+
+    res.header("Content-Type", "text/csv");
+    res.attachment("material-report.csv");
+    return res.send(csv);
+  } catch (error) {
+    console.error("CSV export error:", error);
+    res.status(500).json({ error: "Failed to generate CSV report" });
+  }
+});
+
 module.exports = router;
