@@ -81,15 +81,16 @@ exports.getApprovedWorks = async (req, res) => {
 
 exports.startWork = async (req, res) => {
   try {
-    const { estimatedTime, laborRequired, workId } = req.body;
+    const { comment, workId } = req.body;
 
-    if (!workId || !estimatedTime || !laborRequired) {
-      return res.status(400).json({ error: 'All fields are required' });
+    if (!workId || !comment) {
+      return res.status(400).json({ error: 'Work ID and comment are required' });
     }
 
     const work = await Work.findById(workId);
     if (!work) return res.status(404).json({ error: 'Work not found' });
 
+    // Check supervisor is assigned and active
     const isAssigned = work.history.some(h =>
       h.supervisor?.toString() === req.user._id.toString() && !h.unassignedOn
     );
@@ -102,8 +103,7 @@ exports.startWork = async (req, res) => {
       work.startPhoto = startPhotoUrl;
     }
 
-    work.estimatedTime = estimatedTime;
-    work.laborRequired = laborRequired;
+    work.startComment = comment; 
     work.status = 'In Progress';
 
     await work.save();
@@ -112,9 +112,8 @@ exports.startWork = async (req, res) => {
     console.error('❌ startWork error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
-  console.log(work.startPhoto);
-
 };
+
 
 // ✅ Complete Work
 exports.completeWork = async (req, res) => {
