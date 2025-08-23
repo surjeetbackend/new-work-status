@@ -512,3 +512,101 @@ exports.downloadWorkSummaryCSV = async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 };
+exports.approveCompletedWork = async (req, res) => {
+  try {
+    const { workId, feedback, reason } = req.body;
+    const work = await Work.findById(workId);
+    if (!work) return res.status(404).json({ error: 'Work not found' });
+
+    if (!work.pendingCompletion) {
+      return res.status(400).json({ error: 'No pending completion to approve' });
+    }
+
+    if (feedback === 'Reopen') {
+      if (!reason || reason.trim() === '') {
+        return res.status(400).json({ error: 'Reason is required for reopening' });
+      }
+
+      work.status = 'Reopened';
+      work.reopen = {
+        isReopened: true,
+        reason,
+        reopenedAt: new Date()
+      };
+
+      work.pendingCompletion = false;
+      work.completionApproved = false;
+
+      await work.save();
+      return res.json({ message: 'Work reopened by admin', work });
+
+    } else if (feedback === 'Good' || !feedback) {
+      work.status = 'Completed';
+      work.completedAt = new Date();
+      work.pendingCompletion = false;
+      work.completionApproved = true;
+      work.reopen = {
+        isReopened: false,
+        reason: '',
+        reopenedAt: null
+      };
+
+      await work.save();
+      return res.json({ message: 'Work marked as completed', work });
+
+    } else {
+      return res.status(400).json({ error: 'Invalid feedback value. Use Good or Reopen.' });
+    }
+  } catch (err) {
+    console.error('❌ Error in approveCompletedWork:', err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.adminFeedback = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { feedback, reason } = req.body; 
+
+    const work = await Work.findById(id);
+    if (!work) return res.status(404).json({ message: 'Work not found' });
+
+    if (feedback === 'Good') {
+ 
+      work.status = 'Completed';
+      work.reopen = { isReopened: false, reason: '', reopenedAt: null };
+    } else if (feedback === 'Reopen') {
+      if (!reason || reason.trim() === '') {
+        return res.status(400).json({ message: 'Reason is required for reopening' });
+      }
+
+    
+      work.status = 'In Progress';
+      work.reopen = {
+        isReopened: true,
+        reason,
+        reopenedAt: new Date()
+      };
+    } else {
+      return res.status(400).json({ message: 'Invalid feedback option' });
+    }
+
+    if (!work.feedbackHistory) {
+      work.feedbackHistory = [];
+    }
+    work.feedbackHistory.push({
+      feedback,
+      reason: reason || null,
+      givenAt: new Date()
+    });
+
+    await work.save();
+    res.json({ message: 'Feedback submitted successfully', work });
+
+  } catch (error) {
+    console.error('Admin feedback error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+
