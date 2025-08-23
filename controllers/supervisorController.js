@@ -4,7 +4,6 @@ const path = require('path');
 const { appendMaterialRequest } = require('../utils/googleSheets');
 const { logMaterialRequestToSheet } = require('../utils/googleSheets');
 
-// ✅ Get approved works assigned to the current supervisor
 exports.requestMaterial = async (req, res) => {
   const { workId, materialRequests } = req.body;
   const supervisorId = req.user._id;
@@ -19,7 +18,6 @@ exports.requestMaterial = async (req, res) => {
 
     const timestamp = new Date();
 
-    // Validate and push each request properly
     for (const item of materialRequests) {
       if (!item.item || !item.quantity || !item.requiredDate) {
         return res.status(400).json({ error: 'Each material request must have item, quantity, and requiredDate' });
@@ -90,7 +88,6 @@ exports.startWork = async (req, res) => {
     const work = await Work.findById(workId);
     if (!work) return res.status(404).json({ error: 'Work not found' });
 
-    // Check supervisor is assigned and active
     const isAssigned = work.history.some(h =>
       h.supervisor?.toString() === req.user._id.toString() && !h.unassignedOn
     );
@@ -115,49 +112,45 @@ exports.startWork = async (req, res) => {
 };
 
 
-// ✅ Complete Work
+
+
 exports.completeWork = async (req, res) => {
   try {
     const { workId } = req.body;
     const work = await Work.findById(workId);
     if (!work) return res.status(404).json({ error: 'Work not found' });
 
-    const isAssigned = work.history.some(h =>
-      h.supervisor?.toString() === req.user._id.toString() && !h.unassignedOn
+    const isAssigned = work.history.some(
+      h => h.supervisor?.toString() === req.user._id.toString() && !h.unassignedOn
     );
-    if (!isAssigned) {
-      return res.status(403).json({ error: 'Not authorized to complete this work' });
-    }
+    if (!isAssigned) return res.status(403).json({ error: 'Unauthorized' });
 
     if (work.status !== 'In Progress') {
-      return res.status(400).json({ error: 'Work must be In Progress to complete' });
+      return res.status(400).json({ error: 'Work must be In Progress' });
     }
 
-    if (req.file) {
-      const completionPhotoUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-      // 👇 Push into array instead of replacing
+   
+    if (req.files && req.files['completionPhotos']) {
       work.completionPhotos = work.completionPhotos || [];
-      work.completionPhotos.push({
-        url: completionPhotoUrl,
-        uploadedAt: new Date()
+
+      req.files['completionPhotos'].forEach(file => {
+        const url = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
+        work.completionPhotos.push({ url, uploadedAt: new Date() });
       });
     }
 
-    work.status = 'Completed';
-    await work.save();
+  
+    work.pendingCompletion = true;
+    work.completionRequestedAt = new Date();
 
-    res.json({ message: 'Work marked as completed', work });
+    await work.save();
+    res.json({ message: 'Submitted for admin approval', work });
   } catch (err) {
-    console.error('❌ completeWork error:', err);
+    console.error('completeWork error:', err);
     res.status(500).json({ error: err.message });
   }
 };
 
-// ✅ Material Request
-
-
-
-// ✅ Account Entry (single bill photo + expenses)
 exports.accountEntryHandler = async (req, res) => {
   try {
     const { workId, expenses } = req.body;
@@ -187,7 +180,6 @@ exports.accountEntryHandler = async (req, res) => {
   }
 };
 
-// ✅ Submit account section (multiple bills upload)
 exports.submitAccountDetails = async (req, res) => {
   try {
     const { workId, expenses } = req.body;
@@ -207,5 +199,21 @@ exports.submitAccountDetails = async (req, res) => {
   } catch (err) {
     console.error('❌ Account details error:', err);
     res.status(500).json({ error: 'Failed to save account details' });
+  }
+};
+
+exports.getReopenedWorks = async (req, res) => {
+  try {
+    const works = await Work.find({ 
+      "reopen.isReopened": true, 
+      status: "Reopened" 
+    })
+    .populate("client_id", "name email")
+    .populate("assigned_to", "name");
+
+    res.json(works);
+  } catch (err) {
+    console.error("Error fetching reopened works:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
