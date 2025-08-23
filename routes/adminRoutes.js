@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken, authorizeRoles } = require('../middleware/authMiddleware');
 const Work = require('../models/Work');
+const upload = require('../middleware/upload');  // ye check karo ki upload me multer ka instance properly export ho raha hai ya nahi
+
 
 // Import all admin controller functions
 const {
@@ -14,8 +16,10 @@ const {
   updateSupervisorList,
   getAllWorks,
   getAllMaterialRequests,
-  downloadMaterialRequestsCSV,
+  // downloadMaterialRequestsCSV,
   downloadWorkSummaryCSV,
+  approveCompletedWork,
+  adminFeedback
 } = require('../controllers/adminController');
 
 // Admin-only routes
@@ -30,6 +34,7 @@ router.get('/all-works', verifyToken, authorizeRoles('admin'), getAllWorks);
 router.get('/material-requests', verifyToken, authorizeRoles('admin'), getAllMaterialRequests);
 // router.get('/download/material-requests', verifyToken, authorizeRoles('admin'), downloadMaterialRequestsCSV);
 router.get('/download/work-summary', verifyToken, authorizeRoles('admin'), downloadWorkSummaryCSV);
+router.post('/approve-completion',verifyToken,authorizeRoles('admin'),approveCompletedWork)
 
 // Supervisor-only route (token-based work lookup)
 router.get('/work-by-token/:token', verifyToken, authorizeRoles('supervisor'), async (req, res) => {
@@ -42,5 +47,8 @@ router.get('/work-by-token/:token', verifyToken, authorizeRoles('supervisor'), a
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+router.put('/admin-feedback/:id',verifyToken,authorizeRoles('admin'),adminFeedback);
+
+
 
 module.exports = router;
