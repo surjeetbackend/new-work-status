@@ -10,10 +10,11 @@ const {
   requestMaterial,
   accountEntryHandler,
   submitAccountDetails,
+  getReopenedWorks
 } = require('../controllers/supervisorController');
-const Work = require('../models/Work'); // ✅ Missing import
+const Work = require('../models/Work'); 
 
-// ✅ Get approved/assigned works for supervisor
+
 router.get(
   '/approved-works',
   verifyToken,
@@ -21,7 +22,7 @@ router.get(
   getApprovedWorks
 );
 
-// ✅ Start work (with start photo upload)
+
 router.post(
   '/start-work',
   verifyToken,
@@ -30,16 +31,17 @@ router.post(
   startWork
 );
 
-// ✅ Complete work (with completion photo upload)
 router.post(
   '/complete-work',
   verifyToken,
   authorizeRoles('supervisor'),
-  upload.single('completionPhoto'),
+  upload.fields([
+    { name: 'completionPhotos', maxCount: 4 } 
+  ]),
   completeWork
 );
 
-// ✅ Request material
+
 router.post(
   '/material-request',
   verifyToken,
@@ -47,7 +49,6 @@ router.post(
   requestMaterial
 );
 
-// ✅ Submit account section (bills + expenses)
 router.post(
   '/submit-account/:token_no',
   verifyToken,
@@ -56,7 +57,7 @@ router.post(
   submitAccountDetails
 );
 
-// ✅ Add single expense entry with photo
+
 router.post(
   '/account-entry',
   verifyToken,
@@ -65,7 +66,7 @@ router.post(
   accountEntryHandler
 );
 
-// ✅ Get work by token (used in AccountPage)
+
 router.get(
   '/work-by-token/:token',
   verifyToken,
@@ -86,6 +87,74 @@ router.get(
     }
   }
 );
+// Admin action (after supervisor completion)
+router.post("/work/:id/admin-action", async (req, res) => {
+  const { status } = req.body;
+  const work = await Work.findById(req.params.id);
 
-// ✅ Final export
+  if (!work) return res.status(404).json({ msg: "Work not found" });
+
+  if (status === "good") {
+    work.reopen = { status: "closed", by: "admin" };
+    work.status = "completed";
+  
+  } else if (status === "reopen") {
+    work.reopen = { status: "reopened", by: "admin" };
+    work.status = "in-progress"; 
+
+  }
+
+  await work.save();
+  res.json(work);
+});
+
+
+router.post("/work/:id/client-action", async (req, res) => {
+  const { status } = req.body;
+  const work = await Work.findById(req.params.id);
+
+  if (!work) return res.status(404).json({ msg: "Work not found" });
+
+  if (status === "good") {
+    work.reopen = { status: "closed", by: "client" };
+
+  } else if (status === "reopen") {
+    work.reopen = { status: "reopened", by: "client" };
+    work.status = "in-progress";
+    
+  }
+
+  await work.save();
+  res.json(work);
+});
+// Supervisor Rework (jab client/admin reopen kare to supervisor start kare)
+router.post("/work/:id/supervisor-rework", verifyToken, authorizeRoles("supervisor"), async (req, res) => {
+  try {
+    const work = await Work.findById(req.params.id);
+    if (!work) return res.status(404).json({ msg: "Work not found" });
+
+    // Sirf reopen wali work pe hi action ho
+    if (!work.reopen || work.reopen.status !== "reopened") {
+      return res.status(400).json({ msg: "This work is not reopened" });
+    }
+
+    // Supervisor ne rework start kiya
+    work.status = "in-progress"; // ya "under-rework"
+    work.reopen = {
+      status: "in-progress",
+      by: "supervisor",
+      startedAt: new Date()
+    };
+
+    await work.save();
+    res.json({ msg: "Supervisor started rework", work });
+
+  } catch (err) {
+    console.error("❌ Supervisor rework error:", err);
+    res.status(500).json({ msg: "Internal server error" });
+  }
+});
+
+
+router.get("/reopened/supervisor", verifyToken, authorizeRoles("supervisor"), getReopenedWorks);
 module.exports = router;
