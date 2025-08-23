@@ -27,7 +27,7 @@ const workSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['open', 'Approved', 'Assigned', 'In Progress', 'Completed', 'Rejected'],
+    enum: ['open', 'Approved', 'Assigned', 'In Progress', 'Completed', 'Rejected','Good','Not Good','Reopened'],
     default: 'open'
   },
 
@@ -107,11 +107,38 @@ completedAt: { type: Date },
   laborRequired: String,
   startcommet:String,
   startPhoto: String,
-  completionPhoto: String,
+pendingCompletion: { type: Boolean, default: false },
+completionRequestedAt: { type: Date },
+completionPhotos: [
+  {
+    url: String,
+    uploadedAt: Date
+  }
+],
+
   startComment: { type: String },
 
+  feedback: {
+    givenBy: { type: String, enum: ["Admin", "Client", null], default: null },
+    message: { type: String, default: "" },
+    comment: String,
+    date: { type: Date },
+  },
   
-
+reopen: {
+  isReopened: Boolean,
+  reason: String,
+  reopenedAt: Date,
+  reopenedBy: {
+    type: String, 
+    default: null
+  }
+},
+  goodStatus: {
+    isGood: { type: Boolean, default: false },
+    givenBy: { type: String, enum: ["Admin", "Client", null], default: null },
+    date: { type: Date },
+  },
   
 
 }, { timestamps: true });
